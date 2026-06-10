@@ -12,34 +12,52 @@
     <!-- ── sidebar ── -->
     <aside id="sidebar">
       <div id="sidebar-header">
-        <span class="logo">&#9685;</span>
-        Entertainment Graph
+        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="5"  r="2.5"/><circle cx="5"  cy="17" r="2.5"/>
+          <circle cx="19" cy="17" r="2.5"/>
+          <line x1="12" y1="7.5" x2="5"  y2="14.5"/>
+          <line x1="12" y1="7.5" x2="19" y2="14.5"/>
+          <line x1="7"  y1="17" x2="17"  y2="17"/>
+        </svg>
+        <span>Entertainment Graph</span>
       </div>
 
       <div id="search-section">
-        <input
-          id="search-input"
-          type="text"
-          placeholder="Search movies or TV shows&#8230;"
-          autocomplete="off"
-        >
-        <div id="type-filter">
-          <label><input type="radio" name="type" value="multi" checked> All</label>
-          <label><input type="radio" name="type" value="movie"> Movies</label>
-          <label><input type="radio" name="type" value="tv"> TV</label>
+        <div id="search-row">
+          <input
+            id="search-input"
+            type="text"
+            placeholder="Search movies or TV shows&#8230;"
+            autocomplete="off"
+          >
+          <button id="search-btn" aria-label="Search">
+            <svg viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/>
+            </svg>
+          </button>
         </div>
-        <button id="search-btn">Search</button>
+        <div id="type-filter">
+          <input type="radio" name="type" id="t-all"   value="multi" checked>
+          <label for="t-all">All</label>
+          <input type="radio" name="type" id="t-movie" value="movie">
+          <label for="t-movie">Movies</label>
+          <input type="radio" name="type" id="t-tv"    value="tv">
+          <label for="t-tv">TV</label>
+        </div>
       </div>
 
+      <div id="results-loading" aria-live="polite"></div>
       <div id="results-panel"></div>
 
       <div id="legend">
-        <div class="legend-title">Node types</div>
-        <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span> Movie</div>
-        <div class="legend-item"><span class="legend-dot" style="background:#8b5cf6"></span> TV Show</div>
-        <div class="legend-item"><span class="legend-dot" style="background:#22c55e"></span> Person</div>
-        <div class="legend-item"><span class="legend-dot" style="background:#f97316"></span> Company</div>
-        <div class="legend-hint">* = origin node &nbsp;&#8226;&nbsp; click person/company to expand</div>
+        <div class="legend-title">Node Types</div>
+        <div class="legend-grid">
+          <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span>Movie</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#8b5cf6"></span>TV Show</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#22c55e"></span>Person</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#f97316"></span>Company</div>
+        </div>
+        <div class="legend-hint">Click a person or company node to expand</div>
       </div>
     </aside>
 
@@ -48,8 +66,20 @@
       <div id="status">Search for a title to begin.</div>
 
       <div id="empty-state">
-        <div class="empty-icon">&#9685;</div>
+        <svg class="empty-icon" viewBox="0 0 80 80" fill="none">
+          <circle cx="40" cy="18" r="9"  stroke="#1e3a5f" stroke-width="3"/>
+          <circle cx="16" cy="62" r="9"  stroke="#1e3a5f" stroke-width="3"/>
+          <circle cx="64" cy="62" r="9"  stroke="#1e3a5f" stroke-width="3"/>
+          <line x1="40" y1="27" x2="16" y2="53" stroke="#1e3a5f" stroke-width="2.5"/>
+          <line x1="40" y1="27" x2="64" y2="53" stroke="#1e3a5f" stroke-width="2.5"/>
+          <line x1="25" y1="62" x2="55" y2="62" stroke="#1e3a5f" stroke-width="2.5"/>
+        </svg>
         <p>Search for a movie or TV show<br>to explore its connections.</p>
+      </div>
+
+      <div id="graph-loading">
+        <div class="spinner"></div>
+        <span>Loading graph&#8230;</span>
       </div>
 
       <svg id="graph-svg"></svg>

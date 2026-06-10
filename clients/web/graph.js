@@ -1,7 +1,8 @@
 'use strict';
 
 // ── config ────────────────────────────────────────────────────────────────────
-const SERVER = 'http://localhost:5000';
+const SERVER     = 'http://localhost:5000';
+const IMAGE_BASE = 'https://image.tmdb.org/t/p/w185';
 
 const NODE_COLORS = {
   movie:   '#ef4444',
@@ -10,17 +11,17 @@ const NODE_COLORS = {
   company: '#f97316',
 };
 
-const NODE_R      = 14;   // base circle radius
-const CENTER_R    = 19;   // radius for the origin node
-const EXPANDABLE  = new Set(['person', 'company']);
+const NODE_R     = 22;   // base circle radius
+const CENTER_R   = 28;   // radius for the origin node
+const EXPANDABLE = new Set(['person', 'company']);
 
 // ── state ─────────────────────────────────────────────────────────────────────
-let gNodes      = [];     // full node objects (D3 mutates x/y/vx/vy in place)
-let gLinks      = [];     // link objects (D3 mutates source/target to object refs)
+let gNodes       = [];
+let gLinks       = [];
 let centerNodeId = null;
 
 // ── D3 handles ────────────────────────────────────────────────────────────────
-let simulation, zoomGroup, linkGroup, linkLabelGroup, nodeGroup;
+let simulation, svgDefs, zoomGroup, linkGroup, linkLabelGroup, nodeGroup;
 let isDragging = false;
 
 // ── boot ──────────────────────────────────────────────────────────────────────
@@ -42,19 +43,21 @@ function initGraph() {
     .on('zoom', e => zoomGroup.attr('transform', e.transform));
   svg.call(zoom);
 
+  // <defs> for clipPaths
+  svgDefs = svg.append('defs');
+
   // layer order: links behind nodes
-  zoomGroup       = svg.append('g');
-  linkGroup       = zoomGroup.append('g').attr('class', 'links');
-  linkLabelGroup  = zoomGroup.append('g').attr('class', 'link-labels');
-  nodeGroup       = zoomGroup.append('g').attr('class', 'nodes');
+  zoomGroup      = svg.append('g');
+  linkGroup      = zoomGroup.append('g').attr('class', 'links');
+  linkLabelGroup = zoomGroup.append('g').attr('class', 'link-labels');
+  nodeGroup      = zoomGroup.append('g').attr('class', 'nodes');
 
   simulation = d3.forceSimulation([])
-    .force('link',    d3.forceLink([]).id(d => d.id).distance(140))
-    .force('charge',  d3.forceManyBody().strength(-500))
+    .force('link',    d3.forceLink([]).id(d => d.id).distance(160))
+    .force('charge',  d3.forceManyBody().strength(-600))
     .force('center',  d3.forceCenter(w / 2, h / 2))
-    .force('collide', d3.forceCollide(NODE_R + 12));
+    .force('collide', d3.forceCollide(NODE_R + 16));
 
-  // recentre on resize
   new ResizeObserver(() => {
     const cw = container.clientWidth, ch = container.clientHeight;
     simulation.force('center', d3.forceCenter(cw / 2, ch / 2));
@@ -68,6 +71,11 @@ function initSearch() {
   document.getElementById('search-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') doSearch();
   });
+  document.querySelectorAll('input[name="type"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      if (document.getElementById('search-input').value.trim()) doSearch();
+    });
+  });
 }
 
 async function doSearch() {
@@ -77,6 +85,7 @@ async function doSearch() {
 
   setStatus('Searching…');
   clearResults();
+  setResultsLoading(true);
 
   try {
     const data = await apiFetch(`/api/search?q=${encodeURIComponent(q)}&type=${type}`);
@@ -84,11 +93,23 @@ async function doSearch() {
     setStatus(`${(data.results || []).length} result(s) — select one to explore.`);
   } catch (err) {
     setStatus('Error: ' + err.message, true);
+  } finally {
+    setResultsLoading(false);
   }
 }
 
 function clearResults() {
   document.getElementById('results-panel').innerHTML = '';
+}
+
+function setResultsLoading(on) {
+  const el = document.getElementById('results-loading');
+  if (on) {
+    el.innerHTML = '<div class="mini-spinner"></div><span>Searching…</span>';
+    el.classList.add('visible');
+  } else {
+    el.classList.remove('visible');
+  }
 }
 
 function renderResults(results) {
@@ -98,14 +119,21 @@ function renderResults(results) {
     return;
   }
   panel.innerHTML = results.map((r, i) => {
-    const year = (r.release_date || '').slice(0, 4) || 'n/a';
+    const year = (r.release_date || r.first_air_date || '').slice(0, 4) || 'n/a';
     const tag  = r.media_type === 'movie' ? 'movie' : 'tv';
+    const rating = r.vote_average ? r.vote_average.toFixed(1) : null;
+    const thumb  = r.poster_path
+      ? `<img class="result-thumb" src="${IMAGE_BASE}${r.poster_path}" alt="" loading="lazy">`
+      : `<div class="result-thumb-placeholder">${tag.toUpperCase()}</div>`;
     return `
       <div class="result-item" data-index="${i}">
-        <span class="result-title">${esc(r.title)}</span>
-        <span class="result-meta">
-          <span class="rt-tag rt-${tag}">${tag}</span>${year}
-        </span>
+        ${thumb}
+        <div class="result-info">
+          <span class="result-title">${esc(r.title)}</span>
+          <span class="result-meta">
+            <span class="rt-tag rt-${tag}">${tag}</span>${year}${rating ? `<span><span class="rating-star">★</span>${rating}</span>` : ''}
+          </span>
+        </div>
       </div>`;
   }).join('');
 
@@ -122,9 +150,12 @@ function renderResults(results) {
 // ── graph load ────────────────────────────────────────────────────────────────
 async function loadGraph(mediaType, tmdbId, title) {
   gNodes = []; gLinks = []; centerNodeId = null;
-  updateGraph();                          // clear the canvas
+  // clear old clipPaths
+  svgDefs.selectAll('clipPath').remove();
+  updateGraph();
   hideEmptyState();
-  setStatus(`Loading graph for "${title}"…`);
+  setGraphLoading(true);
+  setStatus(`Loading graph for “${title}”…`);
 
   try {
     const data = await apiFetch(`/api/graph/${mediaType}/${tmdbId}`);
@@ -133,12 +164,18 @@ async function loadGraph(mediaType, tmdbId, title) {
     setStatus(`${gNodes.length} nodes · ${gLinks.length} edges — click a person or company to expand.`);
   } catch (err) {
     setStatus('Error: ' + err.message, true);
+  } finally {
+    setGraphLoading(false);
   }
+}
+
+function setGraphLoading(on) {
+  document.getElementById('graph-loading').classList.toggle('visible', on);
 }
 
 // ── expand node ───────────────────────────────────────────────────────────────
 async function expandNode(nodeType, nodeId, label) {
-  setStatus(`Expanding "${label}"…`);
+  setStatus(`Expanding “${label}”…`);
   try {
     const data = await apiFetch(`/api/expand/${nodeType}/${nodeId}`);
     mergeGraph(data);
@@ -158,8 +195,8 @@ function mergeGraph(data) {
 
   for (const node of (data.nodes || [])) {
     if (!knownNodes.has(node.id)) {
-      node.x = cx + (Math.random() - 0.5) * 160;
-      node.y = cy + (Math.random() - 0.5) * 160;
+      node.x = cx + (Math.random() - 0.5) * 200;
+      node.y = cy + (Math.random() - 0.5) * 200;
       gNodes.push(node);
     }
   }
@@ -177,6 +214,16 @@ function mergeGraph(data) {
   }
 
   updateGraph();
+}
+
+// ── image URL helper ──────────────────────────────────────────────────────────
+function getImageUrl(node) {
+  const d = node.data || {};
+  if (node.type === 'person'  && d.profile_path) return IMAGE_BASE + d.profile_path;
+  if (node.type === 'company' && d.logo_path)    return IMAGE_BASE + d.logo_path;
+  if ((node.type === 'movie' || node.type === 'tv') && d.poster_path)
+    return IMAGE_BASE + d.poster_path;
+  return null;
 }
 
 // ── D3 render ─────────────────────────────────────────────────────────────────
@@ -199,8 +246,22 @@ function updateGraph() {
     .data(gNodes, d => d.id)
     .join(enter => {
       const g = enter.append('g').attr('class', 'node');
-      g.append('circle');
-      g.append('text').attr('dy', '0.35em');
+
+      // bg filled circle
+      g.append('circle').attr('class', 'node-bg');
+
+      // initial letter fallback
+      g.append('text').attr('class', 'node-initial');
+
+      // clipped image
+      g.append('image').attr('class', 'node-image');
+
+      // stroke ring on top of image
+      g.append('circle').attr('class', 'node-ring');
+
+      // label below
+      g.append('text').attr('class', 'node-label');
+
       g.call(makeDrag());
       g.on('click',     onNodeClick);
       g.on('mouseover', onMouseover);
@@ -208,20 +269,70 @@ function updateGraph() {
       return g;
     });
 
-  // update styles on every node (enter + update)
-  nodeGroup.selectAll('g.node')
-    .classed('is-center',     d => d.id === centerNodeId)
-    .classed('is-expandable', d => EXPANDABLE.has(d.type) && d.id !== centerNodeId);
+  // ── update all node sub-elements ──
+  nodeGroup.selectAll('g.node').each(function(d) {
+    const g   = d3.select(this);
+    const r   = d.id === centerNodeId ? CENTER_R : NODE_R;
+    const col = NODE_COLORS[d.type] || '#64748b';
+    const img = getImageUrl(d);
+    const clipId = `clip-${d.id.replace(/[^a-z0-9]/gi, '_')}`;
 
-  nodeGroup.selectAll('g.node circle')
-    .attr('r',            d => d.id === centerNodeId ? CENTER_R : NODE_R)
-    .attr('fill',         d => NODE_COLORS[d.type] || '#64748b')
-    .attr('stroke',       d => d.id === centerNodeId ? '#ffffff' : 'rgba(255,255,255,0.2)')
-    .attr('stroke-width', d => d.id === centerNodeId ? 2.5 : 1.5);
+    // ensure clipPath exists in defs
+    if (img && svgDefs.select(`#${clipId}`).empty()) {
+      svgDefs.append('clipPath')
+        .attr('id', clipId)
+        .append('circle')
+        .attr('r', r);
+    } else if (img) {
+      // update radius in case it's the center node
+      svgDefs.select(`#${clipId} circle`).attr('r', r);
+    }
 
-  nodeGroup.selectAll('g.node text')
-    .attr('x',  d => (d.id === centerNodeId ? CENTER_R : NODE_R) + 5)
-    .text(d => d.label.length > 20 ? d.label.slice(0, 18) + '…' : d.label);
+    // CSS custom property for glow color
+    this.style.setProperty('--node-color', col);
+
+    g.classed('is-center',     d.id === centerNodeId)
+     .classed('is-expandable', EXPANDABLE.has(d.type) && d.id !== centerNodeId);
+
+    g.select('.node-bg')
+      .attr('r',            r)
+      .attr('fill',         col)
+      .attr('fill-opacity', img ? 0.35 : 1);
+
+    g.select('.node-initial')
+      .attr('font-size', Math.round(r * 0.7))
+      .text(img ? '' : d.type[0].toUpperCase());
+
+    if (img) {
+      g.select('.node-image')
+        .attr('href',        img)
+        .attr('x',           -r)
+        .attr('y',           -r)
+        .attr('width',       r * 2)
+        .attr('height',      r * 2)
+        .attr('clip-path',   `url(#${clipId})`)
+        .attr('preserveAspectRatio', 'xMidYMid slice')
+        .on('error', function() {
+          // image failed — hide it, show initial letter
+          d3.select(this).attr('href', null);
+          g.select('.node-bg').attr('fill-opacity', 1);
+          g.select('.node-initial').text(d.type[0].toUpperCase());
+        });
+    } else {
+      g.select('.node-image').attr('href', null);
+    }
+
+    g.select('.node-ring')
+      .attr('r',            r)
+      .attr('stroke',       d.id === centerNodeId ? '#ffffff' : col)
+      .attr('stroke-width', d.id === centerNodeId ? 2.5 : 1.5)
+      .attr('stroke-opacity', d.id === centerNodeId ? 1 : 0.6);
+
+    const labelText = d.label.length > 18 ? d.label.slice(0, 16) + '…' : d.label;
+    g.select('.node-label')
+      .attr('y', r + 14)
+      .text(labelText);
+  });
 
   // ── simulation ──
   simulation.nodes(gNodes);
@@ -258,7 +369,6 @@ function makeDrag() {
     .on('end', (event, d) => {
       if (!event.active) simulation.alphaTarget(0);
       d.fx = null; d.fy = null;
-      // defer reset so the click handler can still read isDragging
       setTimeout(() => { isDragging = false; }, 0);
     });
 }
@@ -276,7 +386,6 @@ function onMouseover(event, d) {
   document.getElementById('tooltip').style.display = 'block';
   placeTooltip(event);
 
-  // dim unconnected links
   linkGroup.selectAll('line').each(function(l) {
     const sid = nodeId(l.source), tid = nodeId(l.target);
     const connected = sid === d.id || tid === d.id;
@@ -303,16 +412,23 @@ function placeTooltip(event) {
 }
 
 function buildTooltip(d) {
-  const dd = d.data || {};
-  let h = `<div class="tt-type tt-${d.type}">${d.type.toUpperCase()}</div>`;
+  const dd  = d.data || {};
+  const img = getImageUrl(d);
+  let h = '';
+
+  if (img) {
+    h += `<img class="tt-thumb" src="${img}" alt="" loading="lazy">`;
+  }
+
+  h += `<div class="tt-type tt-${d.type}">${d.type.toUpperCase()}</div>`;
   h += `<div class="tt-name">${esc(d.label)}</div>`;
 
   if (d.type === 'movie' || d.type === 'tv') {
     const date = dd.release_date || dd.first_air_date || '';
-    if (date)                h += ttRow('Year',    date.slice(0, 4));
-    if (dd.vote_average)     h += ttRow('Rating',  dd.vote_average.toFixed(1) + ' / 10');
-    if (dd.genres?.length)   h += ttRow('Genres',  dd.genres.join(', '));
-    if (dd.number_of_seasons)h += ttRow('Seasons', dd.number_of_seasons);
+    if (date)                 h += ttRow('Year',    date.slice(0, 4));
+    if (dd.vote_average)      h += ttRow('Rating',  dd.vote_average.toFixed(1) + ' / 10');
+    if (dd.genres?.length)    h += ttRow('Genres',  dd.genres.join(', '));
+    if (dd.number_of_seasons) h += ttRow('Seasons', dd.number_of_seasons);
     if (dd.overview) {
       const snip = dd.overview.slice(0, 160);
       h += `<div class="tt-overview">${esc(snip)}${dd.overview.length > 160 ? '…' : ''}</div>`;
