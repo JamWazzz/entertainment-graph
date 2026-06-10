@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Entertainment Graph Explorer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- ── sidebar ── -->
+    <aside id="sidebar">
+      <div id="sidebar-header">
+        <span class="logo">&#9685;</span>
+        Entertainment Graph
+      </div>
+
+      <div id="search-section">
+        <input
+          id="search-input"
+          type="text"
+          placeholder="Search movies or TV shows&#8230;"
+          autocomplete="off"
+        >
+        <div id="type-filter">
+          <label><input type="radio" name="type" value="multi" checked> All</label>
+          <label><input type="radio" name="type" value="movie"> Movies</label>
+          <label><input type="radio" name="type" value="tv"> TV</label>
+        </div>
+        <button id="search-btn">Search</button>
+      </div>
+
+      <div id="results-panel"></div>
+
+      <div id="legend">
+        <div class="legend-title">Node types</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span> Movie</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#8b5cf6"></span> TV Show</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#22c55e"></span> Person</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#f97316"></span> Company</div>
+        <div class="legend-hint">* = origin node &nbsp;&#8226;&nbsp; click person/company to expand</div>
+      </div>
+    </aside>
+
+    <!-- ── graph area ── -->
+    <main id="graph-container">
+      <div id="status">Search for a title to begin.</div>
+
+      <div id="empty-state">
+        <div class="empty-icon">&#9685;</div>
+        <p>Search for a movie or TV show<br>to explore its connections.</p>
+      </div>
+
+      <svg id="graph-svg"></svg>
+
+      <div id="tooltip"></div>
+    </main>
+
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"
+          integrity="sha512-vc58qvvBdrDR4etbxMdlTt4GBQk1qjvyORR2nrsPsFPyrs+/u5c3+1Ct6upOgdZoIl7eq6k3a1UPDSNAQi/32A=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="graph.js"></script>
+</body>
+</html>
