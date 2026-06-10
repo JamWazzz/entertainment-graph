@@ -1,6 +1,17 @@
 # Entertainment Graph Explorer
 
-Interactive movie and TV show graph explorer powered by the TMDB API. Search for a title and explore its cast, directors, writers, and production companies as a navigable graph.
+An interactive entertainment graph explorer that lets you search for any movie or TV show and visualizes its connections — cast, directors, writers, and production companies — as an explorable force-directed graph. Data comes from the TMDB API.
+
+The primary experience is the **web client**: an interactive D3.js graph where you can click nodes to expand connections and explore the network. The project also includes a CLI, a TUI, and a Tkinter GUI to demonstrate a multi-client architecture backed by a single Flask REST server.
+
+---
+
+## Prerequisites
+
+- Python 3.10 or higher
+- A free TMDB API key
+
+---
 
 ## Setup
 
@@ -8,109 +19,58 @@ Interactive movie and TV show graph explorer powered by the TMDB API. Search for
 
 Create a free account at [themoviedb.org](https://www.themoviedb.org/) and generate a v3 API key under **Settings → API**.
 
-### 2. Install dependencies
+### 2. Configure environment
 
-```bash
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# macOS / Linux
-source .venv/bin/activate
-
-pip install -r requirements.txt
+```
+copy .env.example .env
 ```
 
-### 3. Configure environment
+Open `.env` and paste your API key:
 
-```bash
-cp .env.example .env
-# Edit .env and paste your TMDB API key
+```
+TMDB_API_KEY=your_key_here
 ```
 
-### 4. Run the server
+### 3. Install dependencies
 
-```bash
-flask --app server.app:create_app run --debug
 ```
-
-The server starts on `http://localhost:5000`.
+py -m pip install -r requirements.txt
+```
 
 ---
 
-## API Reference
+## Run the server
 
-### `GET /health`
-Returns `{"status": "ok"}`.
-
-### `GET /api/search`
-Search for movies and TV shows.
-
-| Param | Values | Default |
-|-------|--------|---------|
-| `q`   | search string | *(required)* |
-| `type` | `movie` \| `tv` \| `multi` | `multi` |
-
-**Response**
-```json
-{
-  "results": [
-    {
-      "tmdb_id": 550,
-      "media_type": "movie",
-      "title": "Fight Club",
-      "overview": "...",
-      "poster_path": "/path.jpg",
-      "vote_average": 8.4,
-      "release_date": "1999-10-15"
-    }
-  ],
-  "total": 1
-}
+```
+py -m flask --app server.app:create_app run --debug
 ```
 
-### `GET /api/graph/<media_type>/<tmdb_id>`
-Build the connection graph for a title.
-
-- `media_type`: `movie` or `tv`
-- `tmdb_id`: TMDB numeric ID
-
-**Response** — nodes and edges:
-```json
-{
-  "center": "movie_550",
-  "nodes": [
-    { "id": "movie_550", "type": "movie", "label": "Fight Club", "data": { ... } },
-    { "id": "person_819", "type": "person", "label": "Edward Norton", "data": { ... } },
-    { "id": "company_508", "type": "company", "label": "Regency Enterprises", "data": { ... } }
-  ],
-  "edges": [
-    { "id": "...", "source": "person_819", "target": "movie_550", "relation": "acted_in", "data": { "character": "The Narrator" } }
-  ]
-}
-```
-
-**Node types:** `movie`, `tv`, `person`, `company`  
-**Edge relations:** `acted_in`, `directed`, `wrote`, `created`, `produced_by`
-
-### `GET /api/expand/<node_type>/<node_id>`
-Expand a node to reveal its own connections.
-
-- `node_type`: `person` or `company`
-- `node_id`: TMDB numeric ID
-
-Returns the same `{ center, nodes, edges }` shape, with new nodes/edges to merge into the existing graph.
+The server starts on `http://localhost:5000`. Keep it running while using any of the clients.
 
 ---
 
-## Project Structure
+## Clients
+
+### Web client (recommended)
+
+Open `clients/web/index.html` directly in a browser. Search for a title, select a result, and click any person or company node to expand its connections.
+
+### CLI
 
 ```
-server/
-  app.py        Flask app factory and route definitions
-  tmdb.py       TMDB API calls (all HTTP requests live here)
-  graph.py      Node/edge builders for movies, TV shows, and expansions
-  database.py   SQLite connection and schema initialization
-  cache.py      Read/write cache backed by SQLite
+py clients/cli.py search "Breaking Bad"
+py clients/cli.py graph tv 1396
+py clients/cli.py expand person 17419
 ```
 
-SQLite database (`entertainment.db`) is created automatically at the project root on first run. All TMDB responses are cached for 24 hours; computed graphs are cached for 1 hour.
+### TUI
+
+```
+py clients/tui.py
+```
+
+### GUI
+
+```
+py clients/gui.py
+```
